@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tourbillon — канбан-доска</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/variables.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/header.css">
+<link rel="stylesheet" href="css/board.css">
+<link rel="stylesheet" href="css/cards.css">
+<link rel="stylesheet" href="css/modal.css">
+<link rel="stylesheet" href="css/toast.css">
+<link rel="stylesheet" href="css/animations.css">
+<link rel="stylesheet" href="css/responsive.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/canvas-confetti/1.9.3/confetti.browser.min.js"></script>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#e8a94b" stroke-width="1.4"><circle cx="12" cy="12" r="9"/></svg>
+      </div>
+      <div class="brand-text">
+        <h1>Tourbillon</h1>
+        <span class="tagline">точность в каждой задаче</span>
+      </div>
+      <span class="clock" id="clock">--:--:--</span>
+      <div class="sync-indicator" title="Статус связи с сервером">
+        <span class="sync-dot sync-pending" id="syncDot"></span>
+        <span id="syncLabel">Подключение…</span>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat"><span id="statTotal">0</span><label>задач</label></div>
+      <div class="stat"><span id="statDone">0</span><label>готово</label></div>
+      <div class="stat"><span id="statOverdue">0</span><label>просрочено</label></div>
+    </div>
+    <div class="controls">
+      <input id="searchInput" type="text" placeholder="Поиск задач... ( / )">
+      <select id="priorityFilter">
+        <option value="all">Любой приоритет</option>
+        <option value="high">Высокий</option>
+        <option value="medium">Средний</option>
+        <option value="low">Низкий</option>
+      </select>
+      <div class="popover-wrap">
+        <button class="btn ghost" id="labelFilterBtn">Метки</button>
+        <div class="popover" id="labelFilterPopover"></div>
+      </div>
+      <select id="assigneeFilter">
+        <option value="all">Любой исполнитель</option>
+        <option value="none">Без исполнителя</option>
+      </select>
+      <select id="dueFilter">
+        <option value="all">Любой срок</option>
+        <option value="overdue">Просрочено</option>
+        <option value="today">Сегодня</option>
+        <option value="week">На неделе</option>
+        <option value="none">Без срока</option>
+      </select>
+      <button class="btn ghost" id="resetBtn">Сброс</button>
+      <button class="btn ghost icon" id="soundToggleBtn" title="Звук">🔊</button>
+      <button class="btn ghost" id="exportBtn">Экспорт</button>
+      <button class="btn ghost" id="importBtn">Импорт</button>
+      <input type="file" id="importInput" accept="application/json" hidden>
+      <button class="btn ghost icon" id="archiveBtn" title="Архив">📦<span class="badge hidden" id="archiveBadge">0</span></button>
+      <button class="btn ghost icon" id="shortcutsBtn" title="Горячие клавиши">?</button>
+      <button class="btn" id="addColumnTopBtn">+ Колонка</button>
+    </div>
+  </div>
+  <div class="power-reserve"><div class="power-fill" id="powerFill"></div></div>
+  <div class="board-loader" id="boardLoader">
+    <div class="loader-cage">
+      <div class="loader-ring"></div>
+      <div class="loader-ring inner"></div>
+    </div>
+    <span>Заводим механизм…</span>
+  </div>
+  <main class="board" id="board"></main>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="cardModal">
+    <div class="modal-header">
+      <h2>Карточка <span class="modal-card-key" id="modalCardKey"></span></h2>
+      <button class="close-btn" id="closeModalBtn">&times;</button>
+    </div>
+    <div class="field">
+      <label>Название</label>
+      <input type="text" id="fieldTitle" maxlength="120">
+    </div>
+    <div class="field">
+      <label>Описание</label>
+      <textarea id="fieldDesc" rows="3" maxlength="600"></textarea>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Приоритет</label>
+        <div class="priority-choices">
+          <div class="priority-choice" data-p="low">Низкий</div>
+          <div class="priority-choice" data-p="medium">Средний</div>
+          <div class="priority-choice" data-p="high">Высокий</div>
+        </div>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Срок</label>
+        <input type="date" id="fieldDue">
+      </div>
+      <div class="field">
+        <label>Исполнитель</label>
+        <input type="text" id="fieldAssignee" placeholder="Имя" list="assigneeSuggestions">
+        <div class="assignee-preview" id="assigneePreview"></div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Метки</label>
+      <div class="tags-input-row" id="tagsRow">
+        <input type="text" id="tagInput" placeholder="добавить метку и Enter">
+      </div>
+    </div>
+    <div class="field">
+      <label>Чек-лист</label>
+      <div id="checklistItems"></div>
+      <div class="checklist-add">
+        <input type="text" id="checklistInput" placeholder="новый пункт и Enter">
+      </div>
+    </div>
+    <div class="field">
+      <label>История</label>
+      <div id="activityLog" class="activity-log"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn danger" id="deleteCardBtn">В архив</button>
+      <button class="btn" id="saveCardBtn">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="archiveOverlay">
+  <div class="modal" id="archiveModal">
+    <div class="modal-header">
+      <h2>Архив</h2>
+      <button class="close-btn" id="closeArchiveBtn">&times;</button>
+    </div>
+    <div id="archiveList" class="archive-list"></div>
+    <div class="modal-actions">
+      <button class="btn danger" id="purgeAllArchiveBtn">Очистить архив</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="shortcutsOverlay">
+  <div class="modal" id="shortcutsModal">
+    <div class="modal-header">
+      <h2>Горячие клавиши</h2>
+      <button class="close-btn" id="closeShortcutsBtn">&times;</button>
+    </div>
+    <div class="shortcuts-list">
+      <div class="shortcut-row"><kbd>/</kbd><span>Фокус на поиске</span></div>
+      <div class="shortcut-row"><kbd>N</kbd><span>Новая карточка в первой колонке</span></div>
+      <div class="shortcut-row"><kbd>Esc</kbd><span>Закрыть окно</span></div>
+      <div class="shortcut-row"><kbd>?</kbd><span>Показать эту подсказку</span></div>
+      <div class="shortcut-row"><kbd>Enter</kbd><span>Быстрое добавление карточки</span></div>
+      <div class="shortcut-row"><kbd>Shift+Enter</kbd><span>Новая строка при добавлении</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

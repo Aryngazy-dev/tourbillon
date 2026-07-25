@@ -1,0 +1,6 @@
+@media (max-width:640px){
+  .topbar{align-items:flex-start;}
+  .stats{order:3;}
+  .column, .add-column{width:82vw;flex:0 0 82vw;}
+  #searchInput{width:140px;}
+}
